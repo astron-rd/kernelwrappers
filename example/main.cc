@@ -69,14 +69,14 @@ int main() {
     verifyResults(hostOutput, nrElements);
   } catch (const cu::Error &e) {
     std::cerr << "CUDA error: " << e.what() << std::endl;
-    return 1;
+    return EXIT_FAILURE;
   } catch (const nvrtc::Error &e) {
     std::cerr << "NVRTC error: " << e.what() << std::endl;
-    return 1;
+    return EXIT_FAILURE;
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
-    return 1;
+    return EXIT_FAILURE;
   }
 
-  return 0;
+  return EXIT_SUCCESS;
 }

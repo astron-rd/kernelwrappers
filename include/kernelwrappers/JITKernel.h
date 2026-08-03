@@ -12,42 +12,21 @@
 
 namespace kernelwrappers {
 
-/*
- * A kernel that is an actual CUDA JIT-compiled function.
- *
- * The kernel source is compiled at runtime with NVRTC (unless a matching
- * compiled kernel is found in the KernelCache), after which it can be launched
- * on the associated device and stream.
- */
 class JITKernel : public Kernel {
 protected:
-  // Construct a kernel.
   JITKernel(cu::Device &device, cu::Stream &stream, const std::string &source,
             const std::string &name, const CompileFlags &flags,
             const CompileDefinitions &definitions, bool cachable = true,
             bool verbose = false);
 
-  // Set kernel DeviceMemory object argument number \a index to \a mem.
-  // \a mem must outlive kernel execution.
   void setArg(size_t index, const cu::DeviceMemory &mem);
 
-  // Set pointer to kernel device memory object (as void *) number \a index
-  // to \a val. \a *val must outlive kernel execution.
-  // Note: Prefer to use setArg() passing a DeviceMemory ref over this overload.
   void setArg(size_t index, const void **val);
 
-  // Set kernel immediate argument number \a index to \a val.
-  // \a val must outlive kernel execution.
-  // Not for device memory objects (be it as DeviceMemory or as void *).
   template <typename T> void setArg(size_t index, const T &val) {
     doSetArg(index, &val);
   }
 
-  // Set the passed execution configuration if supported on the hardware
-  // in the stream for this kernel.
-  // If not supported and nullptr was passed in errorStrings, an exc is thrown.
-  // If not supported and errorStrings is valid, an error string is written
-  // to the errorStrings pointer.
   void setEnqueueWorkSizes(cu::Device &device, Grid gridSize, Block blockSize,
                            std::string *errorStrings = nullptr);
 

@@ -10,9 +10,6 @@
 /*
  * Example processing step: applies out = in * scale + offset.
  *
- * Owns its kernels and uses kernelwrappers::KernelCompilationQueue to offload
- * their compilation, so all kernels are compiled together, in parallel, on
- * the first call to compileKernels().
  */
 class ExampleProcessingStep {
 public:
@@ -20,10 +17,8 @@ public:
                         cu::Stream &stream, const cu::DeviceMemory &input,
                         const cu::DeviceMemory &output, size_t nrElements);
 
-  // Compile all kernels of this step in parallel. Subsequent calls are no-ops.
   void compileKernels();
 
-  // Apply the step: output = input * scale + offset.
   void process(float scale, float offset);
 
 private:

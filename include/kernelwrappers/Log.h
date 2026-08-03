@@ -6,14 +6,6 @@
 
 namespace kernelwrappers {
 
-/*
- * Minimal, dependency-free logging facility.
- *
- * The library emits log messages through an injectable callback. By default no
- * callback is set and all messages are discarded, so consumers can plug in
- * their own logger (spdlog, std::cout, ...) without kernelwrappers depending
- * on any particular logging framework.
- */
 class Log {
 public:
   enum class Level { Trace, Debug, Info, Warn, Error, Off };

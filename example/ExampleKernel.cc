@@ -1,6 +1,5 @@
 #include "ExampleKernel.h"
 
-// Defines ExampleProcessingStep_source from the embedded .cu file.
 #include <example/kernels/ExampleProcessingStep.cu.o.h>
 
 /*
