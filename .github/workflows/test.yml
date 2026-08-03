@@ -7,9 +7,6 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: NVIDIA V100
-            partition: defq
-            gres: gpu:V100
           - name: NVIDIA A4000
             partition: defq
             gres: gpu:A4000
@@ -27,6 +24,7 @@ jobs:
             BUILD_DIR=$(mktemp -d -t build-XXXXXXXX)
             module load spack
             module load cmake cuda
+            module list
             cmake -S . -B ${BUILD_DIR} -DKERNELWRAPPERS_BUILD_TESTS=ON
             make -C ${BUILD_DIR} -j
             ctest --test-dir ${BUILD_DIR} --output-on-failure
