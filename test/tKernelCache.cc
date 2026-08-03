@@ -39,22 +39,25 @@ std::string makeKernelSource(const std::string &kernelName) {
 TEST_CASE_METHOD(TestFixture, "KernelCache writes and reads PTX",
                  "[kernel-cache]") {
   if (skip_) {
-    return;
+    SKIP("CUDA unavailable");
+  }
+  if (!KernelCache::isEnabled()) {
+    SKIP("KernelCache disabled (KERNELWRAPPERS_CACHE_DISABLE=1)");
   }
 
   const std::string kernelName = makeUniqueKernelName("cache_write_read");
   const std::string source = makeKernelSource(kernelName);
   const KernelCacheHash sourceHash = KernelCache::computeHash(source);
 
-  CachableTestKernel kernel(device_, stream_, source, kernelName);
+  CachableTestKernel kernel(*device_, *stream_, source, kernelName);
 
   std::string ptx;
   REQUIRE_FALSE(
-      KernelCache::readKernelFromCache(kernel, sourceHash, device_, ptx));
+      KernelCache::readKernelFromCache(kernel, sourceHash, *device_, ptx));
 
   kernel.compile();
 
-  REQUIRE(KernelCache::readKernelFromCache(kernel, sourceHash, device_, ptx));
+  REQUIRE(KernelCache::readKernelFromCache(kernel, sourceHash, *device_, ptx));
   CHECK_FALSE(ptx.empty());
 }
 
