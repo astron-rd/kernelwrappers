@@ -78,21 +78,21 @@ TEST_CASE_METHOD(TestFixture,
   CompileDefinitions definitionsB;
   definitionsB["CACHE_VARIANT"] = "2";
 
-  CachableTestKernel kernelA(device_, stream_, source, kernelName,
+  CachableTestKernel kernelA(*device_, *stream_, source, kernelName,
                              CompileFlags(), definitionsA, true);
-  CachableTestKernel kernelB(device_, stream_, source, kernelName,
+  CachableTestKernel kernelB(*device_, *stream_, source, kernelName,
                              CompileFlags(), definitionsB, true);
 
   kernelA.compile();
 
   std::string ptx;
-  REQUIRE(KernelCache::readKernelFromCache(kernelA, sourceHash, device_, ptx));
+  REQUIRE(KernelCache::readKernelFromCache(kernelA, sourceHash, *device_, ptx));
   REQUIRE_FALSE(
-      KernelCache::readKernelFromCache(kernelB, sourceHash, device_, ptx));
+      KernelCache::readKernelFromCache(kernelB, sourceHash, *device_, ptx));
 
   kernelB.compile();
 
-  REQUIRE(KernelCache::readKernelFromCache(kernelB, sourceHash, device_, ptx));
+  REQUIRE(KernelCache::readKernelFromCache(kernelB, sourceHash, *device_, ptx));
 }
 
 TEST_CASE_METHOD(TestFixture,
@@ -109,15 +109,16 @@ TEST_CASE_METHOD(TestFixture,
   const KernelCacheHash sourceHashA = KernelCache::computeHash(sourceA);
   const KernelCacheHash sourceHashB = KernelCache::computeHash(sourceB);
 
-  CachableTestKernel kernelA(device_, stream_, sourceA, kernelNameA);
-  CachableTestKernel kernelB(device_, stream_, sourceB, kernelNameB);
+  CachableTestKernel kernelA(*device_, *stream_, sourceA, kernelNameA);
+  CachableTestKernel kernelB(*device_, *stream_, sourceB, kernelNameB);
 
   kernelA.compile();
 
   std::string ptx;
-  REQUIRE(KernelCache::readKernelFromCache(kernelA, sourceHashA, device_, ptx));
+  REQUIRE(
+      KernelCache::readKernelFromCache(kernelA, sourceHashA, *device_, ptx));
   REQUIRE_FALSE(
-      KernelCache::readKernelFromCache(kernelB, sourceHashB, device_, ptx));
+      KernelCache::readKernelFromCache(kernelB, sourceHashB, *device_, ptx));
 }
 
 TEST_CASE_METHOD(TestFixture,
@@ -137,19 +138,18 @@ TEST_CASE_METHOD(TestFixture,
   CompileFlags flagsB;
   flagsB.insert("-lineinfo");
 
-  CachableTestKernel kernelA(device_, stream_, source, kernelName, flagsA);
-  CachableTestKernel kernelB(device_, stream_, source, kernelName, flagsB);
+  CachableTestKernel kernelA(*device_, *stream_, source, kernelName, flagsA);
+  CachableTestKernel kernelB(*device_, *stream_, source, kernelName, flagsB);
 
   kernelA.compile();
 
   std::string ptx;
-  REQUIRE(KernelCache::readKernelFromCache(kernelA, sourceHash, device_, ptx));
+  REQUIRE(KernelCache::readKernelFromCache(kernelA, sourceHash, *device_, ptx));
   REQUIRE_FALSE(
-      KernelCache::readKernelFromCache(kernelB, sourceHash, device_, ptx));
+      KernelCache::readKernelFromCache(kernelB, sourceHash, *device_, ptx));
 }
 
-TEST_CASE_METHOD(TestFixture,
-                 "KernelCache key changes when source changes",
+TEST_CASE_METHOD(TestFixture, "KernelCache key changes when source changes",
                  "[kernel-cache]") {
   if (skip_) {
     return;
@@ -170,15 +170,16 @@ TEST_CASE_METHOD(TestFixture,
   const KernelCacheHash sourceHashA = KernelCache::computeHash(sourceA);
   const KernelCacheHash sourceHashB = KernelCache::computeHash(sourceB);
 
-  CachableTestKernel kernelA(device_, stream_, sourceA, nameA);
-  CachableTestKernel kernelB(device_, stream_, sourceB, nameB);
+  CachableTestKernel kernelA(*device_, *stream_, sourceA, nameA);
+  CachableTestKernel kernelB(*device_, *stream_, sourceB, nameB);
 
   kernelA.compile();
 
   std::string ptx;
-  REQUIRE(KernelCache::readKernelFromCache(kernelA, sourceHashA, device_, ptx));
+  REQUIRE(
+      KernelCache::readKernelFromCache(kernelA, sourceHashA, *device_, ptx));
   REQUIRE_FALSE(
-      KernelCache::readKernelFromCache(kernelB, sourceHashB, device_, ptx));
+      KernelCache::readKernelFromCache(kernelB, sourceHashB, *device_, ptx));
 }
 
 TEST_CASE_METHOD(TestFixture,
@@ -192,12 +193,12 @@ TEST_CASE_METHOD(TestFixture,
   const std::string source = makeKernelSource(kernelName);
   const KernelCacheHash sourceHash = KernelCache::computeHash(source);
 
-  CachableTestKernel kernel(device_, stream_, source, kernelName,
+  CachableTestKernel kernel(*device_, *stream_, source, kernelName,
                             CompileFlags(), CompileDefinitions(), false);
 
   kernel.compile();
 
   std::string ptx;
   CHECK_FALSE(
-      KernelCache::readKernelFromCache(kernel, sourceHash, device_, ptx));
+      KernelCache::readKernelFromCache(kernel, sourceHash, *device_, ptx));
 }
