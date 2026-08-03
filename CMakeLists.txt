@@ -30,6 +30,7 @@ if(NOT TARGET cudawrappers::cu)
 endif()
 
 option(KERNELWRAPPERS_BUILD_EXAMPLES "Build the examples" ON)
+option(KERNELWRAPPERS_BUILD_TESTS "Build the tests" OFF)
 
 if(DEFINED ENV{HOME})
   set(KERNELWRAPPERS_CACHE_PATH
@@ -64,4 +65,9 @@ target_compile_definitions(
 
 if(KERNELWRAPPERS_BUILD_EXAMPLES)
   add_subdirectory(example)
+endif()
+
+if(KERNELWRAPPERS_BUILD_TESTS)
+  include(CTest)
+  add_subdirectory(test)
 endif()
