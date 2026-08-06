@@ -30,28 +30,22 @@ public:
         return;
       }
 
-      device_ = new cu::Device(0);
-      context_ = new cu::Context(0, *device_);
+      device_ = std::make_unique<cu::Device>(0);
+      context_ = std::make_unique<cu::Context>(0, *device_);
       context_->setCurrent();
-      stream_ = new cu::Stream();
+      stream_ = std::make_unique<cu::Stream>();
     } catch (...) {
       skip_ = true;
     }
-  }
-
-  ~TestFixture() {
-    delete stream_;
-    delete context_;
-    delete device_;
   }
 
   TestFixture(const TestFixture &) = delete;
   TestFixture &operator=(const TestFixture &) = delete;
 
   bool skip_ = false;
-  cu::Device *device_ = nullptr;
-  cu::Context *context_ = nullptr;
-  cu::Stream *stream_ = nullptr;
+  std::unique_ptr<cu::Device> device_;
+  std::unique_ptr<cu::Context> context_;
+  std::unique_ptr<cu::Stream> stream_;
 };
 
 } // namespace kernelwrappers

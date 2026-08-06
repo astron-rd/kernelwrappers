@@ -28,7 +28,7 @@ protected:
   }
 
   void setEnqueueWorkSizes(cu::Device &device, Grid gridSize, Block blockSize,
-                           std::string *errorStrings = nullptr);
+                           std::unique_ptr<std::string> errorStrings = nullptr);
 
   virtual CompileFlags compileFlags() const;
 
