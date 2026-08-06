@@ -1,0 +1,31 @@
+name: test
+on:
+  push:
+  pull_request:
+jobs:
+  test-gpu:
+    runs-on: [slurm]
+    strategy:
+      matrix:
+        include:
+          - name: NVIDIA A4000
+            partition: defq
+            gres: gpu:A4000
+    env:
+      DEVICE_NAME: ${{ matrix.name }}
+      PARTITION_NAME: ${{ matrix.partition }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astron-rd/slurm-action@v1.2
+        with:
+          partition: ${{ matrix.partition }}
+          gres: ${{ matrix.gres }}
+          time: "00:10:00"
+          commands: |
+            BUILD_DIR=$(mktemp -d -t build-XXXXXXXX)
+            module load spack
+            module load cmake cuda
+            module list
+            cmake -S . -B ${BUILD_DIR} -DKERNELWRAPPERS_BUILD_TESTS=ON
+            make -C ${BUILD_DIR} -j
+            ctest --test-dir ${BUILD_DIR} --output-on-failure

@@ -139,7 +139,7 @@ void JITKernel::doSetArg(size_t index, const void *argp) {
 
 void JITKernel::setEnqueueWorkSizes(cu::Device &device, Grid gridSize,
                                     Block blockSize,
-                                    std::string *errorStrings) {
+                                    std::unique_ptr<std::string> errorStrings) {
   std::ostringstream errMsgs;
 
   // Enforce by the hardware supported work sizes to see errors early
