@@ -2,7 +2,6 @@
 #define KERNELWRAPPERS_TESTUTIL_H
 
 #include <cudawrappers/cu.hpp>
-#include <stdexcept>
 
 namespace kernelwrappers {
 
