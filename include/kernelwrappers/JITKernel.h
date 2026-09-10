@@ -7,17 +7,45 @@
 #include <kernelwrappers/KernelCacheHash.h>
 #include <kernelwrappers/KernelConfig.h>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
+
+#ifdef KERNELWRAPPERS_TUNER
+#include <kernel_launcher/arg.h>
+#include <kernel_launcher/builder.h>
+#include <kernel_launcher/config.h>
+#include <kernel_launcher/cuda.h>
+#include <kernel_launcher/utils.h>
+#include <kernel_launcher/value.h>
+#include <kernel_launcher/wisdom.h>
+#endif
 
 namespace kernelwrappers {
 
 class JITKernel : public Kernel {
+#ifdef KERNELWRAPPERS_TUNER
+public:
+  // Configure the directory where kernel captures (for tuning) are stored.
+  static void setCaptureDirectory(const std::string &dir);
+
+  // Append a directory to search for wisdom files.
+  static void addWisdomDirectory(const std::string &dir);
+
+  // The directory where kernel captures are stored. Empty if not configured.
+  static const std::string &captureDirectory();
+#endif
+
 protected:
   JITKernel(cu::Device &device, cu::Stream &stream, const std::string &source,
             const std::string &name, const CompileFlags &flags,
             const CompileDefinitions &definitions, bool cachable = true,
-            bool verbose = false);
+            bool tunable = false, bool verbose = false
+#ifdef KERNELWRAPPERS_TUNER
+            ,
+            const std::vector<kernel_launcher::Value> &templateArgs = {}
+#endif
+  );
 
   void setArg(size_t index, const cu::DeviceMemory &mem);
 
@@ -51,6 +79,25 @@ public:
   }
 
 protected:
+  void setTunable(bool tunable) { tunable_ = tunable; }
+
+#ifdef KERNELWRAPPERS_TUNER
+protected:
+  // The problem size used to select a wisdom entry and to label captures.
+  virtual kernel_launcher::ProblemSize problemSize() const { return {}; }
+
+  // Kernel arguments (device pointers and scalar values) used for capture.
+  virtual std::vector<kernel_launcher::KernelArg> createTunerInput() const {
+    return {};
+  }
+
+  // The configuration loaded by tune(). Only valid after tune().
+  const std::optional<kernel_launcher::Config> &getTunedConfig() const {
+    return itsBestConfig;
+  }
+#endif
+
+protected:
   // Hook to configure the kernel launch (grid/block sizes, ...) once the
   // module is available. Called by compile().
   virtual void configureLaunch() {}
@@ -67,6 +114,11 @@ private:
   const std::string itsName;
   const CompileFlags itsFlags;
   const CompileDefinitions itsDefinitions;
+
+#ifdef KERNELWRAPPERS_TUNER
+  const std::string itsSource;
+  const std::vector<kernel_launcher::Value> itsTemplateArgs;
+#endif
 
   KernelCacheHash itsSourceHash;
 
@@ -94,8 +146,39 @@ private:
   // Whether this kernel is cachable or not.
   bool cachable_;
 
+  // Whether this kernel is tunable or not.
+  bool tunable_;
+
   // Number of threads NVRTC should use for parallel PTX compilation.
   constexpr static int kNrParallelCompilationsThreads = 8;
+
+#ifdef KERNELWRAPPERS_TUNER
+  // Best known configuration, loaded by tune() from a wisdom file (or the
+  // default configuration of the kernel's configuration space).
+  std::optional<kernel_launcher::Config> itsBestConfig;
+
+  // Whether the next launch should be captured for tuning.
+  bool itsCapturePending = false;
+
+  // Number of ordinary launches to make before capturing. This implements
+  // Kernel Launcher's KERNEL_LAUNCHER_CAPTURE_SKIP setting.
+  int itsCaptureSkip = -1;
+
+  // Wisdom is selected once, before the first JIT compilation.
+  bool itsTuningConfigured = false;
+
+  kernel_launcher::KernelBuilder buildKernelBuilder() const;
+  void configureTuning();
+
+  // Run the current launch with capture: copy inputs, launch, copy outputs and
+  // export a tuning capture.
+  void captureLaunch();
+
+  // Lazily configure the default capture directory from
+  // KERNELWRAPPERS_CAPTURE_PATH (unless overridden by the user or environment
+  // variables).
+  static void initializeWisdomDefaults();
+#endif
 };
 
 } // namespace kernelwrappers

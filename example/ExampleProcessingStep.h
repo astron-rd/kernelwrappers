@@ -5,7 +5,8 @@
 #include <cudawrappers/cu.hpp>
 #include <kernelwrappers/KernelCompilationQueue.h>
 
-#include "ExampleKernel.h"
+#include "OffsetKernel.h"
+#include "ScaleKernel.h"
 
 /*
  * Example processing step: applies out = in * scale + offset.
@@ -21,11 +22,15 @@ public:
 
   void process(float scale, float offset);
 
+#ifdef KERNELWRAPPERS_TUNER
+  static size_t tuningNrElements();
+#endif
+
 private:
   kernelwrappers::KernelCompilationQueue compilationQueue;
   cu::Context &context;
-  ExampleKernel scaleKernel;
-  ExampleKernel offsetKernel;
+  ScaleKernel scaleKernel;
+  OffsetKernel offsetKernel;
 };
 
 #endif // KERNELWRAPPERS_EXAMPLE_EXAMPLEPROCESSINGSTEP_H

@@ -10,6 +10,20 @@
 
 namespace {
 
+#ifdef KERNELWRAPPERS_TUNER
+bool tuningCaptureRequested() {
+  constexpr const char *keys[] = {"KERNEL_LAUNCHER_CAPTURE_FORCE",
+                                  "KERNEL_LAUNCHER_CAPTURE"};
+  for (const char *key : keys) {
+    if (const char *value = std::getenv(key);
+        value != nullptr && *value != '\0') {
+      return true;
+    }
+  }
+  return false;
+}
+#endif
+
 void verifyResults(const std::vector<float> &result, size_t nrElements) {
   for (size_t i = 0; i < nrElements; ++i) {
     // The step computes output = input * scale + offset, with input[i] == i,
@@ -35,13 +49,19 @@ int main() {
   kernelwrappers::Log::setLevel(kernelwrappers::Log::Level::Debug);
 
   try {
+    cu::init();
     cu::Device device(0);
     cu::Context context(0, device);
     context.setCurrent();
 
     cu::Stream stream;
 
-    const size_t nrElements = 64;
+    size_t nrElements = 64;
+#ifdef KERNELWRAPPERS_TUNER
+    if (tuningCaptureRequested()) {
+      nrElements = ExampleProcessingStep::tuningNrElements();
+    }
+#endif
     const size_t bytes = nrElements * sizeof(float);
 
     std::vector<float> hostInput(nrElements);
