@@ -18,9 +18,8 @@ ScaleKernel::ScaleKernel(cu::Device &device, cu::Stream &stream,
                          const cu::DeviceMemory &input,
                          const cu::DeviceMemory &output, size_t nrElements)
     : JITKernel(device, stream, ScaleKernel_source, "scale_kernel",
-                 compileFlags(), compileDefinitions()),
-      input_(input), output_(output), nrElements_(nrElements)
-{
+                compileFlags(), compileDefinitions()),
+      input_(input), output_(output), nrElements_(nrElements) {
   setTunable(true);
 }
 
@@ -38,16 +37,16 @@ void ScaleKernel::configureLaunch() {
   if (const auto &tunedConfig = getTunedConfig()) {
     threadsPerBlock = static_cast<unsigned>(
         tunedConfig->at("threads_per_block").to_integer());
-    itemsPerThread = static_cast<unsigned>(
-        tunedConfig->at("items_per_thread").to_integer());
+    itemsPerThread =
+        static_cast<unsigned>(tunedConfig->at("items_per_thread").to_integer());
   }
 #endif
 
   const size_t itemsPerBlock =
       static_cast<size_t>(threadsPerBlock) * itemsPerThread;
   setEnqueueWorkSizes(itsDevice,
-                       kernelwrappers::Grid(ceilDiv(nrElements_, itemsPerBlock)),
-                       kernelwrappers::Block(threadsPerBlock));
+                      kernelwrappers::Grid(ceilDiv(nrElements_, itemsPerBlock)),
+                      kernelwrappers::Block(threadsPerBlock));
 }
 
 #ifdef KERNELWRAPPERS_TUNER

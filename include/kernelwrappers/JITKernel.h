@@ -26,14 +26,8 @@ namespace kernelwrappers {
 class JITKernel : public Kernel {
 #ifdef KERNELWRAPPERS_TUNER
 public:
-  // Configure the directory where kernel captures (for tuning) are stored.
-  static void setCaptureDirectory(const std::string &dir);
-
   // Append a directory to search for wisdom files.
   static void addWisdomDirectory(const std::string &dir);
-
-  // The directory where kernel captures are stored. Empty if not configured.
-  static const std::string &captureDirectory();
 #endif
 
 protected:
@@ -157,26 +151,19 @@ private:
   // default configuration of the kernel's configuration space).
   std::optional<kernel_launcher::Config> itsBestConfig;
 
-  // Whether the next launch should be captured for tuning.
-  bool itsCapturePending = false;
-
-  // Number of ordinary launches to make before capturing. This implements
-  // Kernel Launcher's KERNEL_LAUNCHER_CAPTURE_SKIP setting.
-  int itsCaptureSkip = -1;
-
   // Wisdom is selected once, before the first JIT compilation.
   bool itsTuningConfigured = false;
+  bool itsOnlineTuning = false;
+  bool itsOnlineTuningAttempted = false;
 
   kernel_launcher::KernelBuilder buildKernelBuilder() const;
   void configureTuning();
 
   // Run the current launch with capture: copy inputs, launch, copy outputs and
   // export a tuning capture.
-  void captureLaunch();
+  bool captureLaunch();
 
-  // Lazily configure the default capture directory from
-  // KERNELWRAPPERS_CAPTURE_PATH (unless overridden by the user or environment
-  // variables).
+  // Initialize wisdom directories and the temporary online capture directory.
   static void initializeWisdomDefaults();
 #endif
 };

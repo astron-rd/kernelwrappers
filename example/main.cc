@@ -11,14 +11,9 @@
 namespace {
 
 #ifdef KERNELWRAPPERS_TUNER
-bool tuningCaptureRequested() {
-  constexpr const char *keys[] = {"KERNEL_LAUNCHER_CAPTURE_FORCE",
-                                  "KERNEL_LAUNCHER_CAPTURE"};
-  for (const char *key : keys) {
-    if (const char *value = std::getenv(key);
-        value != nullptr && *value != '\0') {
-      return true;
-    }
+bool onlineTuningRequested() {
+  if (const char *value = std::getenv("KERNELWRAPPERS_TUNE_KERNELS")) {
+    return *value != '\0' && std::string_view(value) != "0";
   }
   return false;
 }
@@ -58,7 +53,7 @@ int main() {
 
     size_t nrElements = 64;
 #ifdef KERNELWRAPPERS_TUNER
-    if (tuningCaptureRequested()) {
+    if (onlineTuningRequested()) {
       nrElements = ExampleProcessingStep::tuningNrElements();
     }
 #endif

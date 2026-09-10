@@ -17,9 +17,8 @@ constexpr size_t kTuningNrElements = 10000000;
 OffsetKernel::OffsetKernel(cu::Device &device, cu::Stream &stream,
                            const cu::DeviceMemory &output, size_t nrElements)
     : JITKernel(device, stream, OffsetKernel_source, "offset_kernel",
-                 compileFlags(), compileDefinitions()),
-      output_(output), nrElements_(nrElements)
-{
+                compileFlags(), compileDefinitions()),
+      output_(output), nrElements_(nrElements) {
   setTunable(true);
 }
 
@@ -35,19 +34,21 @@ void OffsetKernel::configureLaunch() {
 
 #ifdef KERNELWRAPPERS_TUNER
   if (const auto &tunedConfig = getTunedConfig()) {
-    std::cout << "Found tuned config! -> " << tunedConfig->at("threads_per_block").to_integer() << ", " << tunedConfig->at("items_per_thread").to_integer() << std::endl;
+    std::cout << "Found tuned config! -> "
+              << tunedConfig->at("threads_per_block").to_integer() << ", "
+              << tunedConfig->at("items_per_thread").to_integer() << std::endl;
     threadsPerBlock = static_cast<unsigned>(
         tunedConfig->at("threads_per_block").to_integer());
-    itemsPerThread = static_cast<unsigned>(
-        tunedConfig->at("items_per_thread").to_integer());
+    itemsPerThread =
+        static_cast<unsigned>(tunedConfig->at("items_per_thread").to_integer());
   }
 #endif
 
   const size_t itemsPerBlock =
       static_cast<size_t>(threadsPerBlock) * itemsPerThread;
   setEnqueueWorkSizes(itsDevice,
-                       kernelwrappers::Grid(ceilDiv(nrElements_, itemsPerBlock)),
-                       kernelwrappers::Block(threadsPerBlock));
+                      kernelwrappers::Grid(ceilDiv(nrElements_, itemsPerBlock)),
+                      kernelwrappers::Block(threadsPerBlock));
 }
 
 #ifdef KERNELWRAPPERS_TUNER

@@ -15,6 +15,7 @@ public:
               size_t nrElements);
 
   void run(float factor);
+
 protected:
   kernelwrappers::CompileFlags compileFlags() const override;
 
