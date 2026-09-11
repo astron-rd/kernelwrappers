@@ -8,16 +8,11 @@
 
 #include "ExampleProcessingStep.h"
 
-namespace {
-
 #ifdef KERNELWRAPPERS_TUNER
-bool onlineTuningRequested() {
-  if (const char *value = std::getenv("KERNELWRAPPERS_TUNE_KERNELS")) {
-    return *value != '\0' && std::string_view(value) != "0";
-  }
-  return false;
-}
+#include <kernelwrappers/KernelLauncher.h>
 #endif
+
+namespace {
 
 void verifyResults(const std::vector<float> &result, size_t nrElements) {
   for (size_t i = 0; i < nrElements; ++i) {
@@ -53,7 +48,7 @@ int main() {
 
     size_t nrElements = 64;
 #ifdef KERNELWRAPPERS_TUNER
-    if (onlineTuningRequested()) {
+    if (kernelwrappers::KernelLauncher::onlineTuningRequested()) {
       nrElements = ExampleProcessingStep::tuningNrElements();
     }
 #endif

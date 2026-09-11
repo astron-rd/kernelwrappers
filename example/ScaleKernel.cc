@@ -35,6 +35,9 @@ void ScaleKernel::configureLaunch() {
 
 #ifdef KERNELWRAPPERS_TUNER
   if (const auto &tunedConfig = getTunedConfig()) {
+    std::cout << "Found tuned config! -> "
+              << tunedConfig->at("threads_per_block").to_integer() << ", "
+              << tunedConfig->at("items_per_thread").to_integer() << std::endl;
     threadsPerBlock = static_cast<unsigned>(
         tunedConfig->at("threads_per_block").to_integer());
     itemsPerThread =

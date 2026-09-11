@@ -58,8 +58,13 @@ endif()
 message(STATUS "kernelwrappers wisdom location: ${KERNELWRAPPERS_WISDOM_PATH}")
 
 set(_kernelwrappers_sources
-    src/Kernel.cc src/KernelCache.cc src/KernelConfig.cc src/JITKernel.cc
-    src/KernelCompilationQueue.cc src/Log.cc)
+    src/Kernel.cc
+    src/KernelCache.cc
+    src/KernelConfig.cc
+    src/JITKernel.cc
+    src/KernelLauncher.cc
+    src/KernelCompilationQueue.cc
+    src/Log.cc)
 
 add_library(kernelwrappers SHARED ${_kernelwrappers_sources})
 add_library(kernelwrappers::kernelwrappers ALIAS kernelwrappers)

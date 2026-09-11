@@ -1,21 +1,11 @@
 #include <chrono>
-#include <cstdlib>
-#include <cstring>
 #include <cudawrappers/nvrtc.hpp>
-#include <filesystem>
 #include <kernelwrappers/JITKernel.h>
 #include <kernelwrappers/KernelCache.h>
+#include <kernelwrappers/KernelLauncher.h>
 #include <kernelwrappers/Log.h>
 #include <sstream>
 #include <stdexcept>
-#include <sys/wait.h>
-#include <unistd.h>
-
-#ifdef KERNELWRAPPERS_TUNER
-#include <kernel_launcher/export.h>
-#include <kernel_launcher/pragma.h>
-#include <kernel_launcher/wisdom.h>
-#endif
 
 namespace {
 
@@ -71,140 +61,9 @@ std::string compilePTX(nvrtc::Program &program, const std::string &name,
   return program.getPTX();
 }
 
-#ifdef KERNELWRAPPERS_TUNER
-
-const char *defaultWisdomDir() {
-#ifdef KERNELWRAPPERS_WISDOM_PATH
-  return KERNELWRAPPERS_WISDOM_PATH;
-#else
-  return nullptr;
-#endif
-}
-
-std::string &captureDirStorage() {
-  static std::string dir;
-  return dir;
-}
-
-std::vector<std::string> &wisdomDirsStorage() {
-  static std::vector<std::string> dirs = {"."};
-  return dirs;
-}
-
-void appendWisdomDirsFromEnv() {
-  const char *value = std::getenv("KERNEL_LAUNCHER_WISDOM");
-  if (value == nullptr) {
-    return;
-  }
-
-  std::string dir;
-  for (const char ch : std::string(value) + ':') {
-    if (ch == ':' || ch == ';' || ch == ',') {
-      if (!dir.empty()) {
-        wisdomDirsStorage().push_back(std::move(dir));
-        dir.clear();
-      }
-    } else {
-      dir += ch;
-    }
-  }
-}
-
-bool onlineTuningRequested() {
-  if (const char *value = std::getenv("KERNELWRAPPERS_TUNE_KERNELS")) {
-    return *value != '\0' && std::string(value) != "0";
-  }
-  return false;
-}
-
-const char *onlineWisdomDir() {
-  if (const char *value = std::getenv("KERNEL_LAUNCHER_WISDOM")) {
-    return value;
-  }
-  return KERNELWRAPPERS_TUNE_WISDOM_DIRECTORY;
-}
-
-bool runPythonTuner(const std::filesystem::path &capture) {
-  const pid_t pid = fork();
-  if (pid == -1) {
-    return false;
-  }
-  if (pid == 0) {
-    setenv("KERNELWRAPPERS_KERNEL_LAUNCHER_PYTHON",
-           KERNELWRAPPERS_TUNE_KERNEL_LAUNCHER_PYTHON, 1);
-    execl(KERNELWRAPPERS_TUNE_PYTHON, KERNELWRAPPERS_TUNE_PYTHON,
-          KERNELWRAPPERS_TUNE_SCRIPT, "--strategy", "random", "--force",
-          "--output", onlineWisdomDir(), capture.c_str(),
-          static_cast<char *>(nullptr));
-    _exit(127);
-  }
-
-  int status = 0;
-  return waitpid(pid, &status, 0) == pid && WIFEXITED(status) &&
-         WEXITSTATUS(status) == 0;
-}
-
-bool restoreArrayInputs(const std::vector<kernel_launcher::KernelArg> &args,
-                        const std::vector<std::vector<uint8_t>> &inputs) {
-  size_t input = 0;
-  for (const kernel_launcher::KernelArg &arg : args) {
-    if (!arg.is_array()) {
-      continue;
-    }
-
-    void *ptr = nullptr;
-    std::memcpy(&ptr, arg.as_void_ptr(), sizeof(ptr));
-    const std::vector<uint8_t> &bytes = inputs.at(input++);
-    if (cuMemcpy(reinterpret_cast<CUdeviceptr>(ptr),
-                 reinterpret_cast<CUdeviceptr>(bytes.data()),
-                 bytes.size()) != CUDA_SUCCESS) {
-      return false;
-    }
-  }
-  return true;
-}
-
-#endif // KERNELWRAPPERS_TUNER
-
 } // namespace
 
 namespace kernelwrappers {
-
-#ifdef KERNELWRAPPERS_TUNER
-
-void JITKernel::addWisdomDirectory(const std::string &dir) {
-  kernel_launcher::append_global_wisdom_directory(dir);
-  wisdomDirsStorage().push_back(dir);
-  Log::info("kernelwrappers wisdom directory added: " + dir);
-}
-
-void JITKernel::initializeWisdomDefaults() {
-  static const bool initialized = []() {
-    if (captureDirStorage().empty()) {
-      if (onlineTuningRequested()) {
-        const auto dir = std::filesystem::temp_directory_path() /
-                         ("kernelwrappers-tune-" + std::to_string(getpid()));
-        std::filesystem::create_directories(dir);
-        kernel_launcher::set_global_capture_directory(dir.string());
-        captureDirStorage() = dir.string();
-      }
-    }
-
-    // Always search the application-independent local wisdom store.
-    const char *wisdomDir = defaultWisdomDir();
-    appendWisdomDirsFromEnv();
-    if (wisdomDir != nullptr && *wisdomDir != '\0') {
-      kernel_launcher::append_global_wisdom_directory(wisdomDir);
-      wisdomDirsStorage().emplace_back(wisdomDir);
-    }
-
-    return true;
-  }();
-
-  (void)initialized;
-}
-
-#endif // KERNELWRAPPERS_TUNER
 
 JITKernel::JITKernel(cu::Device &device, cu::Stream &stream,
                      const std::string &source, const std::string &name,
@@ -229,14 +88,14 @@ JITKernel::JITKernel(cu::Device &device, cu::Stream &stream,
   }
 
 #ifdef KERNELWRAPPERS_TUNER
-  initializeWisdomDefaults();
+  KernelLauncher::initializeWisdomDefaults();
 #endif
 }
 
 void JITKernel::compile(const bool force) {
 #ifdef KERNELWRAPPERS_TUNER
   if (!itsTuningConfigured) {
-    configureTuning();
+    KernelLauncher::configureTuning(*this);
   }
 #endif
 
@@ -273,75 +132,9 @@ void JITKernel::compile(const bool force) {
   }
 }
 
-void JITKernel::launch() {
-#ifdef KERNELWRAPPERS_TUNER
-  compile();
-
-  if (itsOnlineTuning) {
-    if (captureLaunch()) {
-      itsStream.launchKernel(*itsFunction, itsGridDims.x, itsGridDims.y,
-                             itsGridDims.z, itsBlockDims.x, itsBlockDims.y,
-                             itsBlockDims.z, 0, itsKernelArgs);
-    }
-    return;
-  }
-#else
-  // Ensure that a compiled kernel exists before launch.
-  // If a compiled kernel is already available, for instance when the user
-  // called compile() explicitly, this will be a no-op.
-  compile();
-#endif
-
-  itsStream.launchKernel(*itsFunction, itsGridDims.x, itsGridDims.y,
-                         itsGridDims.z, itsBlockDims.x, itsBlockDims.y,
-                         itsBlockDims.z, 0, itsKernelArgs);
-}
+void JITKernel::launch() { KernelLauncher::launch(*this); }
 
 #ifdef KERNELWRAPPERS_TUNER
-
-kernel_launcher::KernelBuilder JITKernel::buildKernelBuilder() const {
-  return kernel_launcher::build_pragma_kernel(
-      getName(), kernel_launcher::KernelSource(getName() + ".cu", itsSource),
-      itsTemplateArgs);
-}
-
-void JITKernel::configureTuning() {
-  itsBestConfig.reset();
-
-  // Plain JIT kernels remain supported. Only pragma-annotated sources have a
-  // Kernel Launcher configuration space and can have matching wisdom.
-  if (itsSource.find("#pragma kernel") == std::string::npos) {
-    itsTuningConfigured = true;
-    return;
-  }
-
-  const kernel_launcher::KernelBuilder builder = buildKernelBuilder();
-  const kernel_launcher::ProblemSize size = problemSize();
-
-  const auto device = kernel_launcher::CudaDevice::current();
-  if (onlineTuningRequested() && !itsOnlineTuningAttempted) {
-    itsOnlineTuning = true;
-    itsOnlineTuningAttempted = true;
-  }
-
-  // Later additions are explicit overrides, including the default local
-  // wisdom store appended during initialization.
-  for (auto it = wisdomDirsStorage().rbegin(); it != wisdomDirsStorage().rend();
-       ++it) {
-    kernel_launcher::WisdomResult result;
-    kernel_launcher::Config config = kernel_launcher::load_best_config(
-        *it, builder.tuning_key(), builder, device.name(), device.arch(), size,
-        &result);
-    std::cout << "Found wisdom for " << builder.tuning_key() << std::endl;
-    if (result == kernel_launcher::WisdomResult::Ok) {
-      itsBestConfig.emplace(std::move(config));
-      break;
-    }
-  }
-
-  itsTuningConfigured = true;
-}
-
 bool JITKernel::captureLaunch() {
   const bool runNormalLaunch = itsOnlineTuning;
 
@@ -387,8 +180,8 @@ bool JITKernel::captureLaunch() {
   try {
     // kernel_launcher's write_file does not create missing directories, so
     // make sure the capture directory exists before exporting.
-    if (!captureDirStorage().empty()) {
-      std::filesystem::create_directories(captureDirStorage());
+    if (!KernelLauncher::captureDirStorage().empty()) {
+      std::filesystem::create_directories(KernelLauncher::captureDirStorage());
     }
 
     settings.capture_kernel(builder.tuning_key(), builder, size, args, inputs,
@@ -402,36 +195,80 @@ bool JITKernel::captureLaunch() {
   if (itsOnlineTuning) {
     std::filesystem::path capture;
     std::filesystem::file_time_type newest;
-    for (const auto &entry :
-         std::filesystem::directory_iterator(captureDirStorage())) {
-      if (entry.path().extension() == ".json" &&
-          (capture.empty() || entry.last_write_time() > newest)) {
-        capture = entry.path();
-        newest = entry.last_write_time();
+    try {
+      for (const auto &entry : std::filesystem::directory_iterator(
+               KernelLauncher::captureDirStorage())) {
+        if (entry.path().extension() == ".json" &&
+            (capture.empty() || entry.last_write_time() > newest)) {
+          capture = entry.path();
+          newest = entry.last_write_time();
+        }
       }
-    }
-    if (!capture.empty() && runPythonTuner(capture)) {
-      kernel_launcher::append_global_wisdom_directory(onlineWisdomDir());
-      wisdomDirsStorage().emplace_back(onlineWisdomDir());
-      itsOnlineTuning = false;
-      itsTuningConfigured = false;
-      configureTuning();
-      configureLaunch();
-    } else {
-      Log::warn("Online tuning failed for kernel " + itsName +
-                "; using the default configuration");
-      // Give up after a single capture attempt.
+      if (!capture.empty() && KernelLauncher::runPythonTuner(capture)) {
+        kernel_launcher::append_global_wisdom_directory(
+            KernelLauncher::onlineWisdomDir());
+        KernelLauncher::wisdomDirsStorage().emplace_back(
+            KernelLauncher::onlineWisdomDir());
+        itsOnlineTuning = false;
+        itsTuningConfigured = false;
+        configureTuning();
+        configureLaunch();
+      } else {
+        Log::warn("Online tuning failed for kernel " + itsName +
+                  "; using the default configuration");
+        // Give up after a single capture attempt.
+        itsOnlineTuning = false;
+      }
+    } catch (const std::exception &err) {
+      Log::warn("Failed to inspect tuning captures for kernel " + itsName +
+                ": " + err.what());
       itsOnlineTuning = false;
     }
   }
-  if (runNormalLaunch && !restoreArrayInputs(args, inputs)) {
+  if (runNormalLaunch && !KernelLauncher::restoreArrayInputs(args, inputs)) {
     Log::warn("Failed to restore inputs after tuning kernel " + itsName);
     return false;
   }
   return runNormalLaunch;
 }
 
-#endif // KERNELWRAPPERS_TUNER
+void JITKernel::configureTuning() {
+  itsBestConfig.reset();
+
+  // Plain JIT kernels remain supported. Only pragma-annotated sources have a
+  // Kernel Launcher configuration space and can have matching wisdom.
+  if (itsSource.find("#pragma kernel") == std::string::npos) {
+    itsTuningConfigured = true;
+    return;
+  }
+
+  const kernel_launcher::KernelBuilder builder = buildKernelBuilder();
+  const kernel_launcher::ProblemSize size = problemSize();
+
+  const auto device = kernel_launcher::CudaDevice::current();
+  if (KernelLauncher::onlineTuningRequested() && !itsOnlineTuningAttempted) {
+    itsOnlineTuning = true;
+    itsOnlineTuningAttempted = true;
+  }
+
+  // Later additions are explicit overrides, including the default local
+  // wisdom store appended during initialization.
+  for (auto it = KernelLauncher::wisdomDirsStorage().rbegin();
+       it != KernelLauncher::wisdomDirsStorage().rend(); ++it) {
+    kernel_launcher::WisdomResult result;
+    kernel_launcher::Config config = kernel_launcher::load_best_config(
+        *it, builder.tuning_key(), builder, device.name(), device.arch(), size,
+        &result);
+    std::cout << "Found wisdom for " << builder.tuning_key() << std::endl;
+    if (result == kernel_launcher::WisdomResult::Ok) {
+      itsBestConfig.emplace(std::move(config));
+      break;
+    }
+  }
+
+  itsTuningConfigured = true;
+}
+#endif
 
 void JITKernel::setArg(size_t index, const cu::DeviceMemory &mem) {
   doSetArg(index, mem.parameter());

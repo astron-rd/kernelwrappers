@@ -17,8 +17,10 @@ class OnlineTuningKernel : public JITKernel {
 public:
   OnlineTuningKernel(cu::Device &device, cu::Stream &stream,
                      const cu::DeviceMemory &input,
-                     const cu::DeviceMemory &output, std::string key)
-      : JITKernel(device, stream, source(key), "online_tuning_kernel", {}, {}),
+                     const cu::DeviceMemory &output, std::string key,
+                     bool annotated = true)
+      : JITKernel(device, stream, source(key, annotated),
+                  "online_tuning_kernel", {}, {}),
         input_(input), output_(output) {
     setTunable(true);
   }
@@ -57,16 +59,17 @@ protected:
   }
 
 private:
-  static std::string source(const std::string &key) {
-    return "extern \"C\"\n"
-           "#pragma kernel tune(threads=32, 64)\n"
-           "#pragma kernel problem_size(n)\n"
-           "#pragma kernel block_size(threads)\n"
-           "#pragma kernel grid_divisor(threads)\n"
-           "#pragma kernel buffers(input[n], output[n])\n"
-           "#pragma kernel tuning_key(\"" +
-           key +
-           "\")\n"
+  static std::string source(const std::string &key, bool annotated) {
+    const std::string pragmas =
+        annotated ? "#pragma kernel tune(threads=32, 64)\n"
+                    "#pragma kernel problem_size(n)\n"
+                    "#pragma kernel block_size(threads)\n"
+                    "#pragma kernel grid_divisor(threads)\n"
+                    "#pragma kernel buffers(input[n], output[n])\n"
+                    "#pragma kernel tuning_key(\"" +
+                        key + "\")\n"
+                  : "";
+    return "extern \"C\"\n" + pragmas +
            "__global__ void online_tuning_kernel(const float *input, "
            "float *output, int n) {\n"
            "  const int i = blockIdx.x * blockDim.x + threadIdx.x;\n"
@@ -135,4 +138,27 @@ TEST_CASE_METHOD(TestFixture, "JITKernel tunes online", "[online-tuning]") {
   CHECK(kernel.usedTunedConfig());
   CHECK(std::filesystem::exists(wisdomDir / (key + ".wisdom")));
   std::filesystem::remove_all(wisdomDir);
+}
+
+TEST_CASE_METHOD(TestFixture, "JITKernel skips non-pragma online tuning",
+                 "[online-tuning]") {
+  if (skip_) {
+    SKIP("CUDA unavailable");
+  }
+
+  EnvironmentGuard tune("KERNELWRAPPERS_TUNE_KERNELS", "1");
+  const float inputValue = 3.0f;
+  float outputValue = 0.0f;
+  cu::DeviceMemory input(sizeof(inputValue));
+  cu::DeviceMemory output(sizeof(outputValue));
+  stream_->memcpyHtoDAsync(input, &inputValue, sizeof(inputValue));
+
+  OnlineTuningKernel kernel(*device_, *stream_, input, output,
+                            "non_pragma_online_tuning", false);
+  kernel.run();
+  stream_->memcpyDtoHAsync(&outputValue, output, sizeof(outputValue));
+  stream_->synchronize();
+
+  CHECK(outputValue == 6.0f);
+  CHECK_FALSE(kernel.usedTunedConfig());
 }

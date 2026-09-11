@@ -6,20 +6,11 @@
 #include <kernelwrappers/Kernel.h>
 #include <kernelwrappers/KernelCacheHash.h>
 #include <kernelwrappers/KernelConfig.h>
+#include <kernelwrappers/KernelLauncher.h>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
-
-#ifdef KERNELWRAPPERS_TUNER
-#include <kernel_launcher/arg.h>
-#include <kernel_launcher/builder.h>
-#include <kernel_launcher/config.h>
-#include <kernel_launcher/cuda.h>
-#include <kernel_launcher/utils.h>
-#include <kernel_launcher/value.h>
-#include <kernel_launcher/wisdom.h>
-#endif
 
 namespace kernelwrappers {
 
@@ -147,6 +138,13 @@ private:
   constexpr static int kNrParallelCompilationsThreads = 8;
 
 #ifdef KERNELWRAPPERS_TUNER
+  kernel_launcher::KernelBuilder buildKernelBuilder() const;
+  void configureTuning();
+
+  // Run the current launch with capture: copy inputs, launch, copy outputs and
+  // export a tuning capture.
+  bool captureLaunch();
+
   // Best known configuration, loaded by tune() from a wisdom file (or the
   // default configuration of the kernel's configuration space).
   std::optional<kernel_launcher::Config> itsBestConfig;
@@ -156,16 +154,9 @@ private:
   bool itsOnlineTuning = false;
   bool itsOnlineTuningAttempted = false;
 
-  kernel_launcher::KernelBuilder buildKernelBuilder() const;
-  void configureTuning();
-
-  // Run the current launch with capture: copy inputs, launch, copy outputs and
-  // export a tuning capture.
-  bool captureLaunch();
-
-  // Initialize wisdom directories and the temporary online capture directory.
-  static void initializeWisdomDefaults();
 #endif
+
+  friend class KernelLauncher;
 };
 
 } // namespace kernelwrappers
