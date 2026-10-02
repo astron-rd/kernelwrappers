@@ -29,7 +29,7 @@ if(NOT TARGET cudawrappers::cu)
   FetchContent_MakeAvailable(cudawrappers)
 endif()
 
-option(KERNELWRAPPERS_BUILD_EXAMPLES "Build the examples" ON)
+option(KERNELWRAPPERS_BUILD_EXAMPLES "Build the examples" OFF)
 option(KERNELWRAPPERS_BUILD_TESTS "Build the tests" OFF)
 
 if(DEFINED ENV{HOME})
