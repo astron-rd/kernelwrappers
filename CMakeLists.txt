@@ -6,7 +6,6 @@ project(
   LANGUAGES CXX)
 
 find_package(CUDAToolkit REQUIRED)
-find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 
 include(FetchContent)
 
@@ -57,7 +56,15 @@ target_include_directories(
 
 target_link_libraries(kernelwrappers PUBLIC cudawrappers::cu)
 target_link_libraries(kernelwrappers PUBLIC cudawrappers::nvrtc)
-target_link_libraries(kernelwrappers PUBLIC OpenSSL::Crypto)
+
+# xxHash single header to hash kernel-cache keys
+FetchContent_Declare(
+  xxhash
+  GIT_REPOSITORY https://github.com/Cyan4973/xxHash.git
+  GIT_TAG v0.8.4)
+FetchContent_MakeAvailable(xxhash)
+target_include_directories(kernelwrappers PRIVATE "${xxhash_SOURCE_DIR}")
+target_compile_definitions(kernelwrappers PRIVATE XXH_INLINE_ALL)
 
 target_compile_definitions(
   kernelwrappers

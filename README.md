@@ -8,7 +8,7 @@ runtime with NVRTC.
 - CUDA (driver API, NVRTC)
 - [cudawrappers](https://github.com/nlesc-recruit/cudawrappers) (fetched
   automatically by CMake)
-- OpenSSL
+- [xxHash](https://github.com/Cyan4973/xxHash) (fetched automatically by CMake)
 
 ## Building
 
