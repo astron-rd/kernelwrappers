@@ -5,9 +5,9 @@
 #include <kernelwrappers/JITKernel.h>
 #include <kernelwrappers/KernelCache.h>
 #include <kernelwrappers/Log.h>
-#include <openssl/sha.h>
 #include <sstream>
 #include <vector>
+#include <xxhash.h>
 
 namespace kernelwrappers {
 
@@ -81,9 +81,9 @@ std::string KernelCache::getCacheFilePath(const JITKernel &kernel,
 
   std::ostringstream manifest;
   manifest << "kernel=" << kernel.getName() << '\n'
-           << "source_sha256=" << sourceHash << '\n'
-           << "flags_sha256=" << flagsHash << '\n'
-           << "definitions_sha256=" << definitionsHash << '\n'
+           << "source_hash=" << sourceHash << '\n'
+           << "flags_hash=" << flagsHash << '\n'
+           << "definitions_hash=" << definitionsHash << '\n'
            << "gpu_arch=" << device.getArch() << '\n'
            << "cuda_version=" << std::to_string(CUDA_VERSION) << '\n';
 
@@ -108,16 +108,11 @@ bool KernelCache::isEnabled() {
 }
 
 KernelCacheHash KernelCache::computeHash(const std::string &input) {
-  unsigned char digest[SHA256_DIGEST_LENGTH];
-  SHA256(reinterpret_cast<const unsigned char *>(input.data()), input.size(),
-         digest);
+  const XXH128_hash_t hash = XXH3_128bits(input.data(), input.size());
 
   std::ostringstream os;
-  os << std::hex << std::setfill('0');
-
-  for (size_t i = 0; i < SHA256_DIGEST_LENGTH; ++i) {
-    os << std::setw(2) << static_cast<unsigned int>(digest[i]);
-  }
+  os << std::hex << std::setfill('0') << std::setw(16) << hash.high64
+     << std::setw(16) << hash.low64;
 
   return os.str();
 }
